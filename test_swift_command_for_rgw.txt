@@ -1,0 +1,202 @@
+创建s3 user：
+$ radosgw-admin user create --uid="swift" --display-name="swift test"
+2015-08-20 02:57:18.947642 7f8b365bc820  0 couldn't find old data placement pools config, setting up new ones for the zone
+{ "user_id": "swift",
+  "display_name": "swift test",
+  "email": "",
+  "suspended": 0,
+  "max_buckets": 1000,
+  "auid": 0,
+  "subusers": [],
+  "keys": [
+        { "user": "swift",
+          "access_key": "3A4P2FOS64GMTNQD6K7S",
+          "secret_key": "Ab1BMoA1Z9TdO\/GaBpVx+RXmrN60XwS529W8QkqV"}],
+  "swift_keys": [],
+  "caps": [],
+  "op_mask": "read, write, delete",
+  "default_placement": "",
+  "placement_tags": [],
+  "bucket_quota": { "enabled": false,
+      "max_size_kb": -1,
+      "max_objects": -1},
+  "user_quota": { "enabled": false,
+      "max_size_kb": -1,
+      "max_objects": -1},
+  "temp_url_keys": []}
+  
+  
+创建swift user 需要两步1.创建用户;2.生成用户秘钥
+$ radosgw-admin subuser create --uid=ustack --subuser=swift:ustack --access=full
+{ "user_id": "swift",
+  "display_name": "swift test",
+  "email": "",
+  "suspended": 0,
+  "max_buckets": 1000,
+  "auid": 0,
+  "subusers": [
+        { "id": "swift:ustack",
+          "permissions": "full-control"}],
+  "keys": [
+        { "user": "swift",
+          "access_key": "3A4P2FOS64GMTNQD6K7S",
+          "secret_key": "Ab1BMoA1Z9TdO\/GaBpVx+RXmrN60XwS529W8QkqV"},
+        { "user": "swift:ustack",
+          "access_key": "W3D5YHY5ODUC7QXPRJYV",
+          "secret_key": ""}],
+  "swift_keys": [],
+  "caps": [],
+  "op_mask": "read, write, delete",
+  "default_placement": "",
+  "placement_tags": [],
+  "bucket_quota": { "enabled": false,
+      "max_size_kb": -1,
+      "max_objects": -1},
+  "user_quota": { "enabled": false,
+      "max_size_kb": -1,
+      "max_objects": -1},
+  "temp_url_keys": []}
+  生成秘钥：
+$ radosgw-admin key create --subuser=swift:ustack --key-type=swift --gen-secret
+{ "user_id": "swift",
+  "display_name": "swift test",
+  "email": "",
+  "suspended": 0,
+  "max_buckets": 1000,
+  "auid": 0,
+  "subusers": [
+        { "id": "swift:ustack",
+          "permissions": "full-control"}],
+  "keys": [
+        { "user": "swift",
+          "access_key": "3A4P2FOS64GMTNQD6K7S",
+          "secret_key": "Ab1BMoA1Z9TdO\/GaBpVx+RXmrN60XwS529W8QkqV"},
+        { "user": "swift:ustack",
+          "access_key": "W3D5YHY5ODUC7QXPRJYV",
+          "secret_key": ""}],
+  "swift_keys": [
+        { "user": "swift:ustack",
+          "secret_key": "C4yLrEIARjdhSudNMsEh0MqvZsUA2aPnkuq0lr1A"}],
+  "caps": [],
+  "op_mask": "read, write, delete",
+  "default_placement": "",
+  "placement_tags": [],
+  "bucket_quota": { "enabled": false,
+      "max_size_kb": -1,
+      "max_objects": -1},
+  "user_quota": { "enabled": false,
+      "max_size_kb": -1,
+      "max_objects": -1},
+  "temp_url_keys": []}
+  
+ 测试用户访问rgw：
+ s3：
+python脚本：
+import boto
+import boto.s3.connection
+access_key = '3A4P2FOS64GMTNQD6K7S'
+secret_key = 'Ab1BMoA1Z9TdO\/GaBpVx+RXmrN60XwS529W8QkqV'
+conn = boto.connect_s3(
+aws_access_key_id = access_key,
+aws_secret_access_key = secret_key,
+host = '{hostname}',
+is_secure=False,
+calling_format = boto.s3.connection.OrdinaryCallingFormat(),
+)
+bucket = conn.create_bucket('my-new-bucket')
+for bucket in conn.get_all_buckets():
+        print "{name}\t{created}".format(
+                name = bucket.name,
+                created = bucket.creation_date,
+)
+
+测试ceph与keystone集成：
+user information：
+  3 export OS_TENANT_NAME='admin'
+  4 export OS_USERNAME='admin'
+  5 export OS_PASSWORD='xdmfaerotvqrabgmLjhosnckutcytptLPancdaK'
+ 
+$ rados  --pool .users.uid ls
+4eee4bf5930c4f6a8d9598a338727abe
+swift
+swift.buckets
+
+create new container：
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' post blankbox
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+list container for user admin：
+[root@server-70.0.dev3.ustack.in ~ ]$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' list/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+blankbox
+upload file to blankbox：
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' upload blankbox a.txt 
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+a.txt
+
+upload directory to container：
+$ mkdir ceph
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' upload blankbox ceph
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+ceph
+
+list files or directory in container blankbox:
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' list/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+blankbox
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' list blankbox 
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+a.txt
+ceph
+list the stat of container/directory/file
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' stat 
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+                    Account: v1
+                 Containers: 1
+                    Objects: 2
+                      Bytes: 0
+X-Account-Bytes-Used-Actual: 0
+               Content-Type: text/plain; charset=utf-8
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' stat blankbox
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+                      Account: v1
+                    Container: blankbox
+                      Objects: 2
+                        Bytes: 0
+                     Read ACL:
+                    Write ACL:
+                      Sync To:
+                     Sync Key:
+X-Container-Bytes-Used-Actual: 0
+                 Content-Type: text/plain; charset=utf-8
+
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' stat blankbox a.txt
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+       Account: v1
+     Container: blankbox
+        Object: a.txt
+Content Length: 0
+ Last Modified: Thu, 20 Aug 2015 03:25:31 GMT
+          ETag: d41d8cd98f00b204e9800998ecf8427e
+    Meta Mtime: 1439192605.857237
+ Accept-Ranges: bytes
+ 
+download file from specified container
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' download blankbox
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+a.txt [auth 0.145s, headers 0.161s, total 0.161s, 0.000 MB/s]
+ceph [auth 0.163s, headers 0.181s, total 0.181s, 0.000 MB/s]
+$ ls
+a.txt ceph  
+
+$ swift -V 2.0 -A http://10.0.3.31:5000/v2.0 -U admin:admin -K 'xdmfaerotvqrabgmLjhosnckutcytptLPancdaK' download blankbox a.txt
+/usr/lib/python2.6/site-packages/oslo_config/cfg.py:333: DeprecationWarning: The oslo namespace package is deprecated. Please use oslo_config instead.
+  from oslo.config import iniparser
+a.txt [auth 0.296s, headers 0.316s, total 0.317s, 0.000 MB/s]
